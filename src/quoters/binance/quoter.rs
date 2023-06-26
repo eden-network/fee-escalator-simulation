@@ -99,7 +99,6 @@ impl Quoter for BinanceQuoter {
         domain_buy_asset_id: String,
         domain_sell_amount: f64,
     ) -> Result<f64> {
-        println!("BinanceQuoter::query {:?}", (&domain_sell_asset_id, &domain_buy_asset_id, &domain_sell_amount));
         self.query(
             domain_sell_asset_id, 
             domain_buy_asset_id, 
