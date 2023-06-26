@@ -1,9 +1,11 @@
-mod adapter;
+mod quoter;
 mod order_book;
 mod stream;
 mod utils;
+mod market;
 
-pub use adapter::BinanceAdapter;
+pub use quoter::BinanceQuoter;
+pub use market::Market;
 
 use std::{
     collections::HashMap,
@@ -11,6 +13,7 @@ use std::{
 };
 use eyre::Result;
 use order_book::BinanceOrderBook;
+
 
 type MarketTicker = String;
 type OrderBooksShared = Arc<HashMap<String, Arc<Mutex<(BinanceOrderBook,)>>>>;
@@ -53,3 +56,12 @@ impl TryFrom<u8> for BookSize {
         }
     }
 }
+
+pub mod suppported_markets {
+    use super::Market;
+
+    // Supported markets
+    pub const ETHUSDT: Market = Market("ETH", "USDT");
+    pub const BTCUSDT: Market = Market("BTC", "USDT");
+}
+

@@ -9,6 +9,8 @@ use tokio_tungstenite::{
     connect_async, 
 };
 
+// todo: panic if there is no update for X seconds
+
 use super::*;
 
 
@@ -31,14 +33,14 @@ pub struct BinanceAPIOrderBookUpdateData {
 }
 
 pub(super) async fn start_stream(
-    stream_base_endpoint: String, 
+    stream_base_endpoint: &str, 
     market_tickers: Vec<MarketTicker>,
     book_size: BookSize,
     refresh_rate_ms: RefreshRate,
     books: OrderBooksShared
 ) -> Result<()> {
     let mut stream = connect(
-        &stream_base_endpoint, 
+        stream_base_endpoint, 
         market_tickers.clone(), 
         book_size, 
         refresh_rate_ms,

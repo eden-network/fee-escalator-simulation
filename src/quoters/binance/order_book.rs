@@ -10,7 +10,7 @@ pub struct BinanceOrderBook {
 
 impl BinanceOrderBook {
 
-    fn query_exact_base(
+    pub fn query_exact_base(
         &self, 
         swap_type: SwapType, 
         base_amount: f64
@@ -37,7 +37,7 @@ impl BinanceOrderBook {
         (base_used, quote_used)
     }
 
-    fn query_exact_quote(
+    pub fn query_exact_quote(
         &self, 
         swap_type: SwapType,
         quote_amount: f64
@@ -156,7 +156,7 @@ impl Tick {
     }
 }
 
-enum SwapType {
+pub enum SwapType {
     Buy,
     Sell,
 }
