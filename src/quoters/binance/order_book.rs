@@ -1,34 +1,40 @@
 use super::*;
-use stream::BinanceAPIOrderBookUpdateData;
+use connector::{BinanceAPIOrderBookUpdateData, BinanceAPIOrderBookData};
+
 
 #[derive(Debug, Clone)]
 pub struct BinanceOrderBook {
-    last_update_time: u64,
-    bids: Vec<Tick>,
-    asks: Vec<Tick>,
+    data: BinanceOrderBookData,
     depth: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct BinanceOrderBookData {
+    pub last_update_time: u64,
+    pub bids: Vec<Tick>,
+    pub asks: Vec<Tick>,
 }
 
 impl BinanceOrderBook {
 
-    pub fn new(depth: u32) -> Self {
-        let mut s = Self::default();
-        s.depth = depth;
-        s
+    pub fn new(depth: u32, data: BinanceOrderBookData) -> Self {
+        Self { data, depth }
     }
 
-    pub fn update(&mut self, update_data: BinanceAPIOrderBookUpdateData) -> Result<()> {
-        println!("Updating order book...");
+    pub fn update_from_stream(
+        &mut self, 
+        update_data: BinanceAPIOrderBookUpdateData
+    ) -> Result<()> {
         self.update_bids(Self::parse_side(update_data.b)?);
         self.update_asks(Self::parse_side(update_data.a)?);
-        self.last_update_time = update_data.E;
+        self.data.last_update_time = update_data.E;
         Ok(())
     }
 
     fn update_bids(&mut self, updated_ticks: Vec<Tick>) {
         // ? Assume ticks are ordered descending
-        self.bids = Self::update_ticks(
-            self.bids.clone(), 
+        self.data.bids = Self::update_ticks(
+            self.data.bids.clone(), 
             updated_ticks, 
             self.depth, 
             false
@@ -37,8 +43,8 @@ impl BinanceOrderBook {
 
     fn update_asks(&mut self, updated_ticks: Vec<Tick>) {
         // ? Assume ticks are ordered ascending
-        self.asks = Self::update_ticks(
-            self.asks.clone(), 
+        self.data.asks = Self::update_ticks(
+            self.data.asks.clone(), 
             updated_ticks, 
             self.depth, 
             true
@@ -98,9 +104,9 @@ impl BinanceOrderBook {
         base_amount: f64
     ) -> (f64, f64) {
         let book_side = if let SwapType::Sell = swap_type { 
-            &self.bids 
+            &self.data.bids 
         } else {
-            &self.asks
+            &self.data.asks
         };
 
         let mut base_left = base_amount;
@@ -125,9 +131,9 @@ impl BinanceOrderBook {
         quote_amount: f64
     ) -> (f64, f64) {
         let book_side = if let SwapType::Sell = swap_type { 
-            &self.bids 
+            &self.data.bids 
         } else {
-            &self.asks 
+            &self.data.asks 
         };
 
         let mut quote_left = quote_amount;
@@ -160,7 +166,7 @@ impl BinanceOrderBook {
 impl std::fmt::Display for BinanceOrderBook {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.bids.is_empty() || self.asks.is_empty() {
+        if self.data.bids.is_empty() || self.data.asks.is_empty() {
             return Ok(());
         }
 
@@ -173,12 +179,12 @@ impl std::fmt::Display for BinanceOrderBook {
 
         let (min_price_w, min_qty_w) = {
             let dec_w = 3;
-            let max_ask_price = self.asks.last().map(|t| t.price).unwrap_or_default();
-            let max_bid_price = self.bids.first().map(|t| t.price).unwrap_or_default();
+            let max_ask_price = self.data.asks.last().map(|t| t.price).unwrap_or_default();
+            let max_bid_price = self.data.bids.first().map(|t| t.price).unwrap_or_default();
             let min_price_w = (max_ask_price.max(max_bid_price) as i32).to_string().len();
             
-            let max_ask_qty = self.asks.iter().map(|t| t.qty).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or_default();
-            let max_bid_qty = self.bids.iter().map(|t| t.qty).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or_default();
+            let max_ask_qty = self.data.asks.iter().map(|t| t.qty).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or_default();
+            let max_bid_qty = self.data.bids.iter().map(|t| t.qty).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or_default();
             let min_qty_w = (max_ask_qty.max(max_bid_qty) as i32).to_string().len();
 
             (min_price_w + dec_w, min_qty_w + dec_w)
@@ -189,7 +195,7 @@ impl std::fmt::Display for BinanceOrderBook {
 
         let mut book_str = String::new();
         book_str.push_str("Asks:\n");
-        for ask in self.asks.iter().rev() {
+        for ask in self.data.asks.iter().rev() {
             book_str.push_str(
                 &format!("\t{red_color}{0:>1$.2} @ {2:>3$.2}{no_color}\n", 
                     ask.price, price_width, ask.qty, qty_width
@@ -197,7 +203,7 @@ impl std::fmt::Display for BinanceOrderBook {
             );
         }
         book_str.push_str("Bids:\n");
-        for bid in self.bids.iter() {
+        for bid in self.data.bids.iter() {
             book_str.push_str(
                 &format!("\t{green_color}{0:>1$.2} @ {2:>3$.2}{no_color}\n", 
                     bid.price, price_width, bid.qty, qty_width
@@ -212,9 +218,11 @@ impl std::fmt::Display for BinanceOrderBook {
 impl Default for BinanceOrderBook {
     fn default() -> Self {
         Self {
-            last_update_time: 0,
-            bids: vec![],
-            asks: vec![], 
+            data: BinanceOrderBookData {
+                last_update_time: 0,
+                bids: vec![],
+                asks: vec![], 
+            },
             depth: 0
         }
     }
@@ -232,28 +240,20 @@ impl TryFrom<&Vec<String>> for Tick {
     }
 }
 
-// impl TryFrom<BinanceAPIOrderBookUpdateData> for BinanceOrderBook {
-//     type Error = eyre::Report;
+impl TryFrom<BinanceAPIOrderBookData> for BinanceOrderBookData {
+    type Error = eyre::Report;
 
-//     fn try_from(value: BinanceAPIOrderBookUpdateData) -> Result<Self, Self::Error> {
-//         let parse_side = |side: Vec<Vec<String>>| -> Result<Vec<Tick>> {
-//             side.iter().map(|bid| {
-//                 Ok(Tick::new(
-//                     bid[0].parse::<f64>()?, 
-//                     bid[1].parse::<f64>()?
-//                 ))
-//             } as Result<Tick>).collect::<Result<Vec<Tick>>>()
-//         };
-
-//         Ok(Self {
-//             bids: parse_side(value.bids)?,
-//             asks: parse_side(value.asks)?
-//         })
-//     }
-// }
+    fn try_from(value: BinanceAPIOrderBookData) -> Result<Self, Self::Error> {
+        Ok(Self {
+            bids: BinanceOrderBook::parse_side(value.bids)?,
+            asks: BinanceOrderBook::parse_side(value.asks)?,
+            last_update_time: utils::get_epoch_ms(),
+        })
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct Tick {
+pub struct Tick {
     qty: f64,
     price: f64,
 }
@@ -277,9 +277,11 @@ mod tests {
     #[test]
     fn test_update_empty() {
         let mut book = BinanceOrderBook {
-            bids: vec![],
-            asks: vec![], 
-            last_update_time: 0, 
+            data: BinanceOrderBookData {
+                last_update_time: 0, 
+                bids: vec![], 
+                asks: vec![] 
+            },
             depth: 3,
         };
         let updated_bids = vec![
@@ -296,15 +298,15 @@ mod tests {
         book.update_asks(updated_asks.clone());
 
         let update_bids_len = updated_bids.len();
-        assert_eq!(book.bids.len(), update_bids_len);
+        assert_eq!(book.data.bids.len(), update_bids_len);
         for i in 0..update_bids_len {
-            assert_eq!(book.bids[i], updated_bids[i]);
+            assert_eq!(book.data.bids[i], updated_bids[i]);
         }
 
         let update_asks_len = updated_asks.len();
-        assert_eq!(book.asks.len(), update_asks_len);
+        assert_eq!(book.data.asks.len(), update_asks_len);
         for i in 0..update_asks_len {
-            assert_eq!(book.asks[i], updated_asks[i]);
+            assert_eq!(book.data.asks[i], updated_asks[i]);
         }
     }
 
@@ -315,9 +317,11 @@ mod tests {
             Tick::new(1888., 3.22),
         ];
         let mut book = BinanceOrderBook {
-            bids: old_bids.clone(),
-            asks: vec![], 
-            last_update_time: 0, 
+            data: BinanceOrderBookData {
+                last_update_time: 0, 
+                bids: old_bids.clone(), 
+                asks: vec![] 
+            }, 
             depth: 3,
         };
         let updated_ticks = vec![
@@ -326,9 +330,9 @@ mod tests {
         ];
         book.update_bids(updated_ticks.clone());
 
-        assert_eq!(book.bids[0], updated_ticks[0]);
-        assert_eq!(book.bids[1], updated_ticks[1]);
-        assert_eq!(book.bids[2], old_bids[1]);
+        assert_eq!(book.data.bids[0], updated_ticks[0]);
+        assert_eq!(book.data.bids[1], updated_ticks[1]);
+        assert_eq!(book.data.bids[2], old_bids[1]);
     }
 
     #[test]
@@ -338,9 +342,11 @@ mod tests {
             Tick::new(1893., 3.22),
         ];
         let mut book = BinanceOrderBook {
-            asks: old_asks.clone(),
-            last_update_time: 0, 
-            bids: vec![], 
+            data: BinanceOrderBookData {
+                last_update_time: 0, 
+                asks: old_asks.clone(), 
+                bids: vec![] 
+            }, 
             depth: 4,
         };
         let updated_ticks = vec![
@@ -350,10 +356,10 @@ mod tests {
         ];
         book.update_asks(updated_ticks.clone());
 
-        assert_eq!(book.asks[0], updated_ticks[0]);
-        assert_eq!(book.asks[1], updated_ticks[1]);
-        assert_eq!(book.asks[2], old_asks[1]);
-        assert_eq!(book.asks[3], updated_ticks[2]);
+        assert_eq!(book.data.asks[0], updated_ticks[0]);
+        assert_eq!(book.data.asks[1], updated_ticks[1]);
+        assert_eq!(book.data.asks[2], old_asks[1]);
+        assert_eq!(book.data.asks[3], updated_ticks[2]);
     }
 
     #[test]
@@ -363,9 +369,11 @@ mod tests {
             Tick::new(1893., 3.22),
         ];
         let mut book = BinanceOrderBook {
-            asks: old_asks.clone(),
-            last_update_time: 0, 
-            bids: vec![], 
+            data: BinanceOrderBookData {
+                last_update_time: 0, 
+                asks: old_asks.clone(), 
+                bids: vec![] 
+            }, 
             depth: 2,
         };
         let updated_ticks = vec![
@@ -373,8 +381,8 @@ mod tests {
         ];
         book.update_asks(updated_ticks.clone());
 
-        assert_eq!(book.asks.len(), 1);
-        assert_eq!(book.asks[0], old_asks[1]);
+        assert_eq!(book.data.asks.len(), 1);
+        assert_eq!(book.data.asks[0], old_asks[1]);
     }
 
     #[test]
@@ -383,9 +391,11 @@ mod tests {
             Tick::new(1891., 0.1),
         ];
         let mut book = BinanceOrderBook {
-            asks: old_asks.clone(),
-            last_update_time: 0, 
-            bids: vec![], 
+            data: BinanceOrderBookData {
+                last_update_time: 0, 
+                asks: old_asks.clone(), 
+                bids: vec![] 
+            }, 
             depth: 1,
         };
         let updated_ticks = vec![
@@ -393,20 +403,22 @@ mod tests {
         ];
         book.update_asks(updated_ticks.clone());
 
-        assert_eq!(book.asks.len(), 1);
-        assert_eq!(book.asks[0], old_asks[0]);
+        assert_eq!(book.data.asks.len(), 1);
+        assert_eq!(book.data.asks[0], old_asks[0]);
     }
 
     #[test]
     fn test_query_exact_base_sell() {
         let book = BinanceOrderBook {
-            bids: vec![
-                Tick::new(1890., 1.),
-                Tick::new(1889., 0.21),
-                Tick::new(1888., 3.22),
-            ],
-            asks: vec![], 
-            last_update_time: 0, 
+            data: BinanceOrderBookData {
+                last_update_time: 0, 
+                bids: vec![
+                    Tick::new(1890., 1.),
+                    Tick::new(1889., 0.21),
+                    Tick::new(1888., 3.22),
+                ],
+                asks: vec![] 
+            }, 
             depth: 3,
         };
         let base_amount = 5.;
@@ -424,13 +436,19 @@ mod tests {
     #[test]
     fn test_query_exact_base_buy() {
         let book = BinanceOrderBook {
-            bids: vec![],
-            asks: vec![
+            data: BinanceOrderBookData {
+                asks: vec![
                 Tick::new(1888., 3.22),
                 Tick::new(1889., 0.21),
                 Tick::new(1890., 1.),
-            ], 
-            last_update_time: 0, 
+                ],
+                bids: vec![
+                    Tick::new(1890., 1.),
+                    Tick::new(1889., 0.21),
+                    Tick::new(1888., 3.22),
+                ],
+                last_update_time: 0, 
+            },
             depth: 3,
         };
         let base_amount = 5.;
@@ -447,13 +465,15 @@ mod tests {
     #[test]
     fn test_query_exact_quote_sell() {
         let book = BinanceOrderBook {
-            bids: vec![
-                Tick::new(1890., 1.),
-                Tick::new(1889., 0.21),
-                Tick::new(1888., 3.22),
-            ],
-            asks: vec![], 
-            last_update_time: 0, 
+            data: BinanceOrderBookData {
+                bids: vec![
+                    Tick::new(1890., 1.),
+                    Tick::new(1889., 0.21),
+                    Tick::new(1888., 3.22),
+                ],
+                asks: vec![], 
+                last_update_time: 0, 
+            },
             depth: 3,
         };
         let quote_amount = 9000.;
@@ -470,13 +490,15 @@ mod tests {
     #[test]
     fn test_query_exact_quote_buy() {
         let book = BinanceOrderBook {
-            bids: vec![],
-            asks: vec![
-                Tick::new(1888., 3.22),
-                Tick::new(1889., 0.21),
-                Tick::new(1890., 1.),
-            ], 
-            last_update_time: 0, 
+            data: BinanceOrderBookData {
+                bids: vec![],
+                asks: vec![
+                    Tick::new(1888., 3.22),
+                    Tick::new(1889., 0.21),
+                    Tick::new(1890., 1.),
+                ], 
+                last_update_time: 0, 
+            },
             depth: 3,
         };
         let quote_amount = 9000.;

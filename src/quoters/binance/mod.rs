@@ -1,6 +1,6 @@
 mod quoter;
 mod order_book;
-mod stream;
+mod connector;
 mod utils;
 mod market;
 

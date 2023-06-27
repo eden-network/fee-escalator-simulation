@@ -35,19 +35,36 @@ pub struct BinanceAPIOrderBookUpdateData {
     pub a: Vec<Vec<String>>, // asks to be updated (sorted ascending)
 }
 
-// #[derive(serde::Deserialize, Debug)]
-// pub struct BinanceAPIOrderBook {
-//     stream: String,
-//     data: BinanceAPIOrderBookData,
-// }
+#[derive(serde::Deserialize, Debug)]
+pub struct BinanceAPIOrderBook {
+    stream: String,
+    data: BinanceAPIOrderBookData,
+}
 
-// #[derive(serde::Deserialize, Debug)]
-// #[serde(rename_all = "camelCase")]
-// pub struct BinanceAPIOrderBookData {
-//     last_update_id: u64,
-//     pub bids: Vec<Vec<String>>, // sorted desc
-//     pub asks: Vec<Vec<String>>, // sorted asc
-// }
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BinanceAPIOrderBookData {
+    last_update_id: u64,
+    pub bids: Vec<Vec<String>>, // sorted desc
+    pub asks: Vec<Vec<String>>, // sorted asc
+}
+
+pub(super) async fn fetch_book(
+    endpoint: &str,
+    market_ticker: &MarketTicker,
+    depth: u32,
+) -> Result<BinanceAPIOrderBookData> {
+    let endpoint = format!(
+        "{}/api/v3/depth?symbol={}&limit={}",
+        endpoint,
+        market_ticker.to_uppercase(),
+        depth,
+    );
+    let resp = reqwest::get(&endpoint).await?;
+    let resp = resp.text().await?;
+    let book: BinanceAPIOrderBookData = serde_json::from_str(&resp)?;
+    Ok(book.into())
+}
 
 pub(super) async fn start_stream(
     stream_base_endpoint: &str, 
@@ -127,7 +144,7 @@ fn handle_update(books: OrderBooksShared, msg: &str) -> Result<()> {
             let mut book = books.get(&ticker.to_lowercase())
                 .unwrap()
                 .lock().expect("Could not lock book");
-            book.0.update(order_book_update.data)?;
+            book.0.update_from_stream(order_book_update.data)?;
         }
         Err(e) => {
             println!("Error parsing order book update: {e}");

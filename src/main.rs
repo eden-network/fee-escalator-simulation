@@ -18,13 +18,13 @@ async fn main() -> eyre::Result<()> {
     // binance
     let book_depth = 20;
     let refresh_rate_ms = 100;
+    let binance_fee_bps = 7.5;
 
-    let mut binance_quoter = BinanceQuoter::new(
+    let binance_quoter = BinanceQuoter::create(
         vec![suppported_markets::ETHUSDT, suppported_markets::BTCUSDT],
         book_depth,
         refresh_rate_ms,
-    );
-    binance_quoter.start_stream();
+    ).await?;
 
     // 1inch
     let domain = Domain::Arbitrum;
@@ -66,7 +66,7 @@ async fn main() -> eyre::Result<()> {
         let binance_amount_out = match binance_quoter.get_amount_out(&sell_asset, &buy_asset, sell_amount_fixed).await {
             Ok(amount_out) =>{
                 println!("{} {} -> {} {}", sell_amount_fixed, sell_asset.id, amount_out, buy_asset.id);
-                amount_out
+                amount_out * (1. - binance_fee_bps/1e4)
             },
             Err(e) => {
                 println!("Error: {}", e);

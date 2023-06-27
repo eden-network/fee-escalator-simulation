@@ -1,13 +1,14 @@
 use eyre::Result;
 
 use super::*;
-use order_book::{BinanceOrderBook, SwapType};
+use order_book::{BinanceOrderBook, BinanceOrderBookData, SwapType};
 use market::{Market, Markets};
 use super::super::Quoter;
 use crate::asset::{Asset, Domain};
 
 
 const BINANCE_STREAM_ENDPOINT: &str = "wss://stream.binance.com:9443";
+const BINANCE_API_ENDPOINT: &str = "https://api.binance.com";
 
 pub struct BinanceQuoter {
     refresh_rate_ms: RefreshRate,
@@ -18,32 +19,42 @@ pub struct BinanceQuoter {
 
 impl BinanceQuoter {
 
-    pub fn new(
+    pub async fn create(
         markets: Vec<Market>,
         book_depth: u32,
         refresh_rate_ms: u32,
-    ) -> Self {
+    ) -> Result<Self> {
         let markets: Markets = markets.into();
         let refresh_rate_ms = refresh_rate_ms.try_into().expect("Invalid refresh rate");
 
         let mut order_books = HashMap::new();
         for market_ticker in &markets.tickers {
+            let book = connector::fetch_book(
+                BINANCE_API_ENDPOINT, 
+                market_ticker, 
+                book_depth
+            ).await?;
+            let orderbook = BinanceOrderBook::new(
+                book_depth, 
+                BinanceOrderBookData::try_from(book)?
+            );
             order_books.insert(
                 market_ticker.clone(),
-                // todo: different books could have different depths
-                Arc::new(Mutex::new((BinanceOrderBook::new(book_depth),)))
+                Arc::new(Mutex::new((orderbook,)))
             );
         }
-        Self {
+        let mut quoter = Self {
             order_books: Arc::new(order_books),
             stream_started: false,
             refresh_rate_ms,
             markets,
-        }
+        };
+        quoter.start_stream();
+        Ok(quoter)
     }
-    // todo: at the beginning of the stream the order books will be wrong - only changes are reflected (so if there is already an order and the price doesn't move much in next X minutes, we will miss a tick)
-    pub fn start_stream(&mut self) {
-        tokio::spawn(stream::start_stream(
+
+    fn start_stream(&mut self) {
+        tokio::spawn(connector::start_stream(
             BINANCE_STREAM_ENDPOINT,
                 self.markets.tickers.clone(),
                 self.refresh_rate_ms,
@@ -54,9 +65,6 @@ impl BinanceQuoter {
     }
 
     pub fn get_book(&self, market: &MarketTicker) -> Result<BinanceOrderBook> {
-        if !self.stream_started {
-            println!("Stream not yet started!");
-        }
         let book = self.order_books.get(market).unwrap();
         let book = book.lock().unwrap().0.clone();
         Ok(book)
@@ -132,11 +140,11 @@ mod tests {
     async fn test_binance_stream() {
         let book_depth = 50;
         let refresh_rate_ms = 100;
-        let mut quoter = BinanceQuoter::new(
+        let mut quoter = BinanceQuoter::create(
             vec![suppported_markets::ETHUSDT, suppported_markets::BTCUSDT],
             book_depth,
             refresh_rate_ms,
-        );
+        ).await.unwrap();
         quoter.start_stream();
 
         let mut interval = tokio::time::interval(std::time::Duration::from_millis(100));
