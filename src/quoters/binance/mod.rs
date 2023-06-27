@@ -42,6 +42,7 @@ enum BookSize {
     Five = 5,
     Ten = 10,
     Twenty = 20,
+    
 }
 
 impl TryFrom<u8> for BookSize {

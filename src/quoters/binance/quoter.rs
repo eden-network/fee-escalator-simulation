@@ -7,10 +7,9 @@ use super::super::Quoter;
 use crate::asset::{Asset, Domain};
 
 
-const BinanceStreamEndpoint: &str = "wss://stream.binance.com:9443";
+const BINANCE_STREAM_ENDPOINT: &str = "wss://stream.binance.com:9443";
 
 pub struct BinanceQuoter {
-    book_size: BookSize,
     refresh_rate_ms: RefreshRate,
     order_books: Arc<HashMap<MarketTicker, Arc<Mutex<(BinanceOrderBook,)>>>>,
     pub markets: Markets,
@@ -21,35 +20,32 @@ impl BinanceQuoter {
 
     pub fn new(
         markets: Vec<Market>,
-        book_size: u8,
+        book_depth: u32,
         refresh_rate_ms: u32,
     ) -> Self {
         let markets: Markets = markets.into();
-        let book_size = book_size.try_into().expect("Invalid book size");
         let refresh_rate_ms = refresh_rate_ms.try_into().expect("Invalid refresh rate");
 
         let mut order_books = HashMap::new();
         for market_ticker in &markets.tickers {
             order_books.insert(
                 market_ticker.clone(),
-                // todo: add last update timestamp
-                Arc::new(Mutex::new((BinanceOrderBook::default(),)))
+                // todo: different books could have different depths
+                Arc::new(Mutex::new((BinanceOrderBook::new(book_depth),)))
             );
         }
         Self {
             order_books: Arc::new(order_books),
             stream_started: false,
             refresh_rate_ms,
-            book_size,
             markets,
         }
     }
-
+    // todo: at the beginning of the stream the order books will be wrong - only changes are reflected (so if there is already an order and the price doesn't move much in next X minutes, we will miss a tick)
     pub fn start_stream(&mut self) {
         tokio::spawn(stream::start_stream(
-            BinanceStreamEndpoint,
+            BINANCE_STREAM_ENDPOINT,
                 self.markets.tickers.clone(),
-                self.book_size,
                 self.refresh_rate_ms,
                 self.order_books.clone()
             )
@@ -134,10 +130,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_binance_stream() {
+        let book_depth = 50;
+        let refresh_rate_ms = 100;
         let mut quoter = BinanceQuoter::new(
             vec![suppported_markets::ETHUSDT, suppported_markets::BTCUSDT],
-            20,
-            100,
+            book_depth,
+            refresh_rate_ms,
         );
         quoter.start_stream();
 
