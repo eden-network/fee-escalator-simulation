@@ -3,41 +3,40 @@ use serde::Deserialize;
 use eyre::Result;
 use reqwest; 
 
-// todo: construct a call with this path and try executing it via debug (borrow needed amounts and return the result in revert msg)
 
 const API_URL: &str = "https://api.1inch.io/v5.0";
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct OneInchResponse {
-    from_token: Token, 
-    to_token: Token,
+    // from_token: Token, 
+    // to_token: Token,
     pub to_token_amount: String, 
-    from_token_amount: String, 
-    protocols: Vec<Vec<Vec<Protocol>>>, 
-    estimated_gas: u64,
+    // from_token_amount: String, 
+    // protocols: Vec<Vec<Vec<Protocol>>>, 
+    // estimated_gas: u64,
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct Token {
-    symbol: String,
-    name: String, 
-    decimals: u8,
-    address: String, 
-    #[serde(rename = "logoURI")]
-    logo_uri: String, 
-    tags: Vec<String>
-}
+// #[derive(Deserialize, Debug)]
+// #[serde(rename_all = "camelCase")]
+// struct Token {
+//     symbol: String,
+//     name: String, 
+//     decimals: u8,
+//     address: String, 
+//     #[serde(rename = "logoURI")]
+//     logo_uri: String, 
+//     tags: Vec<String>
+// }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct Protocol {
-    name: String, 
-    part: u8, 
-    from_token_address: String, 
-    to_token_address: String
-}
+// #[derive(Deserialize, Debug)]
+// #[serde(rename_all = "camelCase")]
+// struct Protocol {
+//     name: String, 
+//     part: u8, 
+//     from_token_address: String, 
+//     to_token_address: String
+// }
 
 pub struct OneInchClient {
     client: reqwest::Client,
@@ -153,20 +152,17 @@ impl OneInchClient {
     }
     
     fn create_http_proxy() -> Result<reqwest::Proxy> {
-        let proxy_username = std::env::var("PROXY_USERNAME").expect("PROXY_USERNAME not set");
-        let proxy_password = std::env::var("PROXY_PASSWORD").expect("PROXY_PASSWORD not set");
-        let proxy_host = std::env::var("PROXY_HOST").expect("PROXY_HOST not set");
-        let proxy_port = std::env::var("PROXY_PORT").expect("PROXY_PORT not set");
-        let proxy_http = format!("http://{proxy_username}:{proxy_password}@{proxy_host}:{proxy_port}");
-        let proxy = reqwest::Proxy::https(proxy_http)?;
+        let username = std::env::var("PROXY_USERNAME").expect("PROXY_USERNAME not set");
+        let password = std::env::var("PROXY_PASSWORD").expect("PROXY_PASSWORD not set");
+        let host = std::env::var("PROXY_HOST").expect("PROXY_HOST not set");
+        let port = std::env::var("PROXY_PORT").expect("PROXY_PORT not set");
+        let url = format!("http://{username}:{password}@{host}:{port}");
+        let proxy = reqwest::Proxy::https(url)?;
         Ok(proxy)
     }
     
 
 }
-
-
-
 
 
 #[cfg(test)]

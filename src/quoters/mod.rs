@@ -1,5 +1,6 @@
 pub mod oneinch;
 pub mod binance;
+pub mod crypto;
 
 use crate::asset::{Asset, Domain};
 use eyre::Result;

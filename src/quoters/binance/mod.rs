@@ -64,5 +64,6 @@ pub mod suppported_markets {
     // Supported markets
     pub const ETHUSDT: Market = Market("ETH", "USDT");
     pub const BTCUSDT: Market = Market("BTC", "USDT");
+    pub const ARBUSDT: Market = Market("ARB", "USDT");
 }
 

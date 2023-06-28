@@ -91,7 +91,7 @@ impl From<NonEVM> for Domains2 {
  * 
  */
 
-
+#[derive(Clone, Debug)]
 pub struct Asset {
     pub id: String,
     domain_info: HashMap<Domain, (AssetId, Decimals)>,
@@ -175,6 +175,22 @@ impl Asset {
         amount
     }
 
+}
+
+pub mod supported_assets {
+    use super::{Domain, Asset};
+
+    lazy_static::lazy_static! {
+        pub static ref ETH: Asset = Asset::new("eth")
+            .add_domain(Domain::Binance, "ETH", 0)
+            .add_domain(Domain::Arbitrum, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", 18);
+        pub static ref USDT: Asset = Asset::new("usdt")
+            .add_domain(Domain::Binance, "USDT", 0)
+            .add_domain(Domain::Arbitrum, "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", 6);
+        pub static ref ARB: Asset = Asset::new("arb")
+            .add_domain(Domain::Binance, "ARB", 0)
+            .add_domain(Domain::Arbitrum, "0x912CE59144191C1204E64559FE8253a0e49E6548", 18);
+    }
 }
 
 #[cfg(test)]
