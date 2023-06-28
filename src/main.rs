@@ -23,9 +23,9 @@ async fn main() -> eyre::Result<()> {
 
     let binance_quoter = BinanceQuoter::create(
         vec![
-            // binance::suppported_markets::ETHUSDT, 
+            binance::suppported_markets::ETHUSDT, 
             // binance::suppported_markets::BTCUSDT,
-            binance::suppported_markets::ARBUSDT,
+            // binance::suppported_markets::ARBUSDT,
         ],
         book_depth,
         refresh_rate_ms,
@@ -61,10 +61,10 @@ async fn main() -> eyre::Result<()> {
 
     // todo: make this in command-line args
     // trade
-    // let sell_asset = supported_assets::ETH;
-    let sell_asset = &supported_assets::ARB;
+    let sell_asset = &supported_assets::WETH;
+    // let sell_asset = &supported_assets::ARB;
     let buy_asset = &supported_assets::USDT;
-    let sell_amount_fixed = 700_000.;
+    let sell_amount_fixed = 10.;
 
     let apply_binance_fee = |x: f64| {
         x * (1. - binance_fee_bps/BPS)
